@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from config import Config
-from Mathon_Zarch.src.restaurant_review_classifier import GlobalConfig, train_model
+from restaurant_review_classifier import GlobalConfig, train_model
 from llm_classifier import LLMClassifier
 
 
