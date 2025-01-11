@@ -21,17 +21,29 @@ Chaque classificateur est une séquence de couches linéaires et de fonctions d'
 Le modèle est entraîné en utilisant PyTorch Lightning avec un optimiseur AdamW et un scheduler de taux d'apprentissage.
 Un callback d'arrêt anticipé est utilisé pour arrêter l'entraînement si le modèle ne s'améliore pas pendant 3 epochs consécutives.
 
-Les résultats obtenus (avec 24 epochs et 3500 steps) :
-    ALL RUNS ACC : [82.9, 82.9, 82.9, 82.9, 82.9]
-    AVG MACRO ACC : 82.9
-    TOTAL EXEC TIME : 48.4
-Le temps affiché sur ce test ne correspond pas aux temps d'entraînement, car le classifier à réutiliser
-le dernier checkpoint. Recharger le modèle permet d'économiser du temps de calcul, mais ne permet pas d'entraîner le modèle une fois le nombre d'epochs atteint.
+Les résultats obtenus (avec 25 epochs et 3500 steps et sans data augmentation) sont les suivants :
+    ALL RUNS ACC: [83.26, 83.45, 83.45, 83.45, 83.45]
+    AVG MACRO ACC: 83.41
+    TOTAL EXEC TIME: 1672.3 (soit presque 28 mins)
+
+Les résultats obtenus (avec 25 epochs et 3850 steps et avec data augmentation de 10%) sont les suivants :
+   ALL RUNS ACC: [82.65, 82.65, 82.65, 82.65, 82.65]
+   AVG MACRO ACC: 82.65
+   TOTAL EXEC TIME: 277.5
+
+Les temps affichés sur ce test ne correspondent pas aux temps d'entraînement, car le classifier à réutiliser
+le dernier checkpoint. La data augmentation a été implémentée pour essayer d'augmenter la précision du modèle, mais cela n'a pas eu d'effet significatif.
+En plus d'augmenter le temps d'entraînement, la consommation de VRAM sur les différentes runs a fortement augmenté, ce qui a nécessité de relancer le training pour remettre la VRAM à zéro.
+La data augmentation n'a pas été laissé dans la version finale pour des raisons de simplicité et de vitesse d'entraînement.
+
+Recharger le modèle permet d'économiser du temps de calcul, mais ne permet pas d'entraîner le modèle une fois le nombre d'epochs atteint.
+Pour déactiver le rechargement du modèle, il suffit de commenter la ligne 263 de 'restaurant_review_classifier.py'.
 Le nombre d'epochs dépend du nombre de runs, et est fixé à cinq par run (25 epochs au total est proche de la limite en terme d'entraînement).
 
 Le temps d'entraînement est aux alentours d'une minute par epoch environ (soit ~25 mins d'entraînement au total).
 Le trainer utilise comme précision "16 bit float mixed" pour accélérer l'entraînement et réduire la mémoire (au lieu du 32 bit full précision).
-La data augmentation n'a pas été implémenté pour des raisons de simplicité et de vitesse d'entraînement.
+
+
 
 La totalité des fichiers '.ipynb' sont des fichiers "bac à sable" pour tester des fonctionnalités, des idées ou des modifications.
 

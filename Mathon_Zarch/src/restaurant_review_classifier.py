@@ -18,7 +18,7 @@ from transformers import AutoConfig, AutoTokenizer, AutoModel, get_scheduler
 class GlobalConfig:
     device: int = 0
     dropout: float = 0.2
-    batch_size: int = 32 # prend plus 12Go de VRAM sur ma machine
+    batch_size: int = 32  # prend plus 12Go de VRAM sur ma machine
     # l'entraînement repart de la dernière sauvegarde
     n_runs: int = 5
     # n_train is the number of samples on which to run the eval. n_trian=-1 means eval on all test data,
@@ -26,7 +26,7 @@ class GlobalConfig:
     # n_test is the number of samples on which to run the eval. n_test=-1 means eval on all test data,
     n_test: int = -1
     lr: float = 1e-5
-    max_epochs: int = n_runs * 5 # le training est stoppé après 3 epochs sans amélioration donc on peut se le permettre
+    max_epochs: int = n_runs * 5  # le training est stoppé après 3 epochs sans amélioration donc on peut se le permettre
     num_workers: int = 0
     hf_plm_name: str = "almanach/camembertv2-base"  # French BERT model
     max_input_length: int = 512
@@ -35,7 +35,6 @@ class GlobalConfig:
     dataset_test_path = "../data/ftdataset_test.tsv"
     logging_root_dir: str = "."
     ckpt_root_dir: str = "./ckpt"
-
 
 
 class RestaurantDataProcessor:
@@ -146,7 +145,7 @@ class RestaurantReviewClassifier(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=self.cfg.lr)
-        scheduler =  get_scheduler("cosine",optimizer=optimizer,num_warmup_steps=0,num_training_steps=10)
+        scheduler = get_scheduler("cosine", optimizer=optimizer, num_warmup_steps=0, num_training_steps=10)
         return [optimizer], [scheduler]
 
     def training_step(self, batch, batch_idx):
@@ -194,10 +193,24 @@ class RestaurantReviewClassifier(L.LightningModule):
                 for aspect, pred in predictions.items()}
 
 
+'''
+def augment_data(examples, fill_mask, mask_token):
+    outputs = []
+    for sentence in examples["Avis"]:
+        words = sentence.split(' ')
+        K = randint(1, len(words) - 1)
+        masked_sentence = " ".join(words[:K] + [mask_token] + words[K + 1:])
+        predictions = fill_mask(masked_sentence)
+        augmented_sequences = [predictions[i]["sequence"] for i in range(1)]
+        outputs += augmented_sequences
+
+    return {"Avis": outputs}
+'''
+
 
 def prepare_data(cfg, df_train=None, df_val=None, df_test=None):
     # Read CSV
-    #Ce n'est pas propre, mais ça permet de la faire tourner via runproject
+    # Ce n'est pas propre, mais ça permet de la faire tourner via runproject
     if df_train is None:
         df_train = pd.read_csv(cfg.dataset_train_path, sep=' *\t *', encoding='utf-8', engine='python')
         df_train = Dataset.from_pandas(df_train)
@@ -215,6 +228,20 @@ def prepare_data(cfg, df_train=None, df_val=None, df_test=None):
         'Ambiance': sorted(df_test['Ambiance'].unique().tolist())
     }
 
+    # Tout ce bazard pour augmenter le dataset
+    '''
+    fill_mask = pipeline("fill-mask", model="almanach/camembertv2-base", use_fast=True, torch_dtype=torch.bfloat16)
+    mask_token = fill_mask.tokenizer.mask_token
+    df_train = pd.DataFrame(df_train)
+    sub_length = math.ceil(len(df_train) * 0.1)
+    K = randint(1, len(df_train) - sub_length)
+    df_train_subset = Dataset.from_pandas(df_train[K:K + sub_length - 1])
+    df_train_subset.map(augment_data, batched=True, remove_columns=df_train_subset.column_names, batch_size=32,
+                        fn_kwargs={"fill_mask": fill_mask, "mask_token": mask_token})
+    df_train_subset = pd.DataFrame(df_train_subset)
+    df_train = pd.concat([df_train, df_train_subset], ignore_index=True)
+    df_train = Dataset.from_pandas(df_train)
+    '''
     # Convert to Dataset
     df_test = Dataset.from_pandas(df_test)
 
@@ -227,11 +254,14 @@ def prepare_data(cfg, df_train=None, df_val=None, df_test=None):
 
 def train_model(cfg: GlobalConfig, df_train=None, df_val=None):
     # Prepare data
-    datasets, aspect_labels = prepare_data(cfg,df_train, df_val)
+    datasets, aspect_labels = prepare_data(cfg, df_train, df_val)
 
     # Create model
     model = RestaurantReviewClassifier(cfg, aspect_labels)
+
+    last_checkpoint = None
     last_checkpoint = find_latest_checkpoint(cfg.logging_root_dir)
+
     # Create dataloaders
     dataloaders = {
         split: DataLoader(
@@ -240,13 +270,13 @@ def train_model(cfg: GlobalConfig, df_train=None, df_val=None):
             shuffle=(split == 'train'),
             collate_fn=model.data_processor.collate_fn,
             num_workers=cfg.num_workers,
-            pin_memory = True,
+            pin_memory=True,
         )
         for split, dataset in datasets.items()
     }
 
     # Setup training (Il faut l'installer dommage)
-    #logger = TensorBoardLogger(save_dir=cfg.logging_root_dir)
+    # logger = TensorBoardLogger(save_dir=cfg.logging_root_dir)
 
     early_stopping = EarlyStopping(
         monitor='val_loss',
@@ -312,7 +342,6 @@ def find_latest_checkpoint(logging_dir: str) -> str:
     print(f"Found latest checkpoint in version_{version}: {latest_checkpoint}")
 
     return latest_checkpoint
-
 
 
 if __name__ == "__main__":
